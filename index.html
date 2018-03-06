@@ -1,0 +1,42 @@
+<script src = "https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<canvas id = "ctx" width = "500" height = "500" style = "border:1px solid black;"></canvas>
+<script>
+window.onload = function(){
+var socket = io();
+var ctx = document.getElementById("ctx").getContext('2d');
+document.onkeyup = function(event){
+
+       switch(event.keyCode){
+	       case 37: socket.emit('keydown', {direction: 'left', state: false}); break;
+	       case 38: socket.emit('keydown', {direction: 'up', state: false}); break;
+           case 39:	socket.emit('keydown', {direction: 'right', state: false}); break;
+           case 40: socket.emit('keydown', {direction: 'down', state: false}); break;   
+	   }
+};
+document.onkeydown = function(event){
+
+       switch(event.keyCode){
+	       case 37: socket.emit('keydown', {direction: 'left', state: true}); break;
+	       case 38: socket.emit('keydown', {direction: 'up', state: true}); break;
+           case 39:	socket.emit('keydown', {direction: 'right', state: true}); break;
+           case 40: socket.emit('keydown', {direction: 'down', state: true}); break;   
+	   }
+};
+
+ctx.font = "30px Arial";
+ctx.clearRect(0,0,500,500);
+
+
+socket.emit("client",{connect: 'client connect'})
+
+
+socket.on('movement',function(data){
+ctx.clearRect(0,0,500,500);
+ for(var i in data){
+      ctx.fillText(data[i].number,data[i].x,data[i].y);
+	  
+ }
+
+});
+}
+</script>
