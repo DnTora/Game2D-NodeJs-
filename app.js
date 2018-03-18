@@ -29,6 +29,56 @@ var Entity = function(){
   }
   return self;
 }
+// instance of bullet
+var Bullet = function(parent,angle){
+	 
+	  var self = Entity();
+	  self.id = Math.random();
+	  self.speedX = Math.cos(angle/180*Math.PI) * 10;
+	  self.speedY = Math.sin(angle/180*Math.PI) * 10;
+	  self.parent = parent;
+	  self.timer = 0;
+	  self.toRemove = false;
+	  var super_update = self.update;
+	  self.update = function(){
+		  if(self.timer++ > 100)
+			  self.toRemove = true;
+		      super_update();
+			     for(var i in Player.list){
+					  var player = Player.list[i];
+					  if(self.getDistance(player) < 30 && self.parent != player.id)
+						  self.toRemove = true;
+				  }		 
+	  }
+	     self.getDistance = function(player){
+			 return Math.sqrt(Math.pow(self.x-player.x,2)+Math.pow(self.y-player.y,2));
+		 };
+               
+	   Bullet.list[self.id] = self;
+	  return self;
+}
+
+Bullet.list = {};
+Bullet.update = function(){
+	
+ var pack_age = [];
+ for(var i in Bullet.list){
+ var bullet = Bullet.list[i]; 
+      bullet.update();
+	   if(bullet.toRemove)
+         delete Bullet.list[i];
+else{
+      pack_age.push({
+
+          x:bullet.x,
+          y:bullet.y         
+     });
+
+   }
+ }
+ return pack_age;
+}
+
 var Player = function(id){	
 var self = Entity();                    
          self.id = id; 
@@ -37,14 +87,26 @@ var self = Entity();
          self.left =  false;
          self.up =   false;
          self.down = false;
+		 self.pressAttack = false;
+		 self.mouseAngle = 0;
          self.Maxspeed = 10;		  
     
                var super_update = self.update;
                self.update = function(){
                              self.updateSpeed();
                              super_update();
+							 if(self.pressAttack){
+								 for(var i=-3; i<3; i++){
+	                             self.shootBullet(self.mouseAngle + i  * 10);
+								 }
+							}                            
+					self.shootBullet = function(angle){
+						 var b = Bullet(self.id,angle);
+	                             b.x = self.x;
+								 b.y = self.y;
+					}
                    }
-              
+                      
              self.updateSpeed = function(){
               
                      if(self.right)
@@ -58,6 +120,7 @@ var self = Entity();
               else if(self.down)
                            self.speedY =  self.Maxspeed;
               else self.speedY = 0;
+			  
 
 
      }
@@ -65,6 +128,8 @@ var self = Entity();
 	return self
 }
 Player.list = {};
+
+// player connect 
 Player.onConnect = function(socket){
 
 	  var player = Player(socket.id);
@@ -75,16 +140,23 @@ Player.onConnect = function(socket){
 			  case 'up': player.up = data.state; break;
 			  case 'down': player.down = data.state; break;
 			  case 'right': player.right = data.state; break;
+			  case 'mouseAngle': player.mouseAngle = data.state; break;
+			  case 'space': player.pressAttack = data.state; break;
 		  }
 	  });
 }
+
+// user diconnect 
 Player.onDisconnect = function(socket){
      delete Player.list[socket.id];
 }
+
+// update user and send packget
 Player.update = function(){
  var pack_age = [];
  for(var i in Player.list){
- var player = Player.list[i]; 
+ var player = Player.list[i];
+      
       player.update();
       pack_age.push({
 
@@ -95,8 +167,9 @@ Player.update = function(){
 
 }
  return pack_age;
-
 }
+
+// socket rquire
 var io = require('socket.io')(server,{});
 io.sockets.on('connection', function(socket){
 	// check user connect
@@ -109,6 +182,19 @@ io.sockets.on('connection', function(socket){
  
       Player.onConnect(socket);
 	  
+	  socket.on('sendMsgToServer', function(data){
+	var playerName = ("" + socket.id).slice(2,7);
+	for(var i in LIST_SOCKET){
+		LIST_SOCKET[i].emit("addToChat", playerName + ": " + data);
+    }
+	  
+	  });
+     socket.on('evalServer', function(data){		 
+	  var res = eval(data);
+	  socket.emit("evalAnswer", res);
+	  });
+	  
+	
 	// disconect user die socket
 socket.on('disconnect', function(){
      delete LIST_SOCKET[socket.id];
@@ -117,9 +203,12 @@ socket.on('disconnect', function(){
 });
 
 });
+
 setInterval(function(){
-            var pack_age =  Player.update();
-	
+            var pack_age =  {
+				player:Player.update(),
+				bullet: Bullet.update()
+			}
 	 for(var i in LIST_SOCKET){
 		 var socket = LIST_SOCKET[i];
 		 socket.emit('movement',pack_age);
